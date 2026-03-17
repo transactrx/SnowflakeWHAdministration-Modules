@@ -29,14 +29,14 @@ module "column_tags" {
       column                     = "LAST_NAME"
     },
     {
-      tag_id                     = "PII"
+      tag_id                     = "PHI"
       tag_value                  = "MEDIUM"
       table_fully_qualified_name = "DATABASE.SCHEMA.ANOTHER_TABLE"
       column                     = "EMAIL"
     },
     {
       # tag_value is optional - omitting it will use Snowflake's default
-      tag_id                     = "SENSITIVE"
+      tag_id                     = "PHI"
       table_fully_qualified_name = "DATABASE.SCHEMA.ANOTHER_TABLE"
       column                     = "SSN"
     }
