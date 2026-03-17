@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    snowflake = {
+      source  = "snowflakedb/snowflake"
+      version = ">= 0.99.0"
+    }
+  }
+}
+
 //----------------------------------------------------------------------------------------------------
 // Column Tag Association Module
 // Applies Snowflake tags to specified table columns
