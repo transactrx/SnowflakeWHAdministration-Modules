@@ -12,51 +12,24 @@ This is a **modular Terraform project** following a monorepo structure. Each mod
 
 ### 📋 [tagging](./tagging)
 
-**Purpose:** Manages Snowflake column tag associations for data governance and compliance.
+Apply Snowflake tags to table columns for data governance and compliance (PHI, PII, PCI classifications).
 
-**Description:**
-The tagging module allows you to apply Snowflake tags to specific columns across multiple tables in a declarative way. It's particularly useful for managing sensitive data classifications (e.g., PHI, PII, PCI) at scale.
-
-**Key Features:**
-- Apply tags to multiple columns across multiple tables
-- Dynamic resource creation using `for_each`
-- Optional tag values (uses Snowflake defaults when omitted)
-- Automatic column identifier construction
-- Composite key pattern ensures uniqueness
-
-**Use Cases:**
-- Mark PHI/PII columns for HIPAA compliance
-- Tag sensitive financial data for audit trails
-- Classify data for access control policies
-- Document column-level metadata
-
-**Example Usage:**
+**Example:**
 ```hcl
-module "column_tags" {
+module "tag_phi_columns" {
   source = "github.com/your-org/SnowflakeWHAdministration-Modules//tagging"
 
-  column_tag_associations = [
-    {
-      tag_id                     = "PHI"
-      tag_value                  = "TRUE"
-      table_fully_qualified_name = "DATABASE.SCHEMA.TABLE"
-      column                     = "FIRST_NAME"
-    },
-    {
-      tag_id                     = "PII"
-      tag_value                  = "TRUE"
-      table_fully_qualified_name = "DATABASE.SCHEMA.TABLE"
-      column                     = "SSN"
-    }
-  ]
+  tag_id                     = local.tag_id_phi
+  table_fully_qualified_name = "DATABASE.SCHEMA.TABLE"
+
+  column_tag_values = {
+    "FIRST_NAME" = "NAME"
+    "SSN"        = "SSN"
+  }
 }
 ```
 
-**Requirements:**
-- Terraform >= 1.3
-- Snowflake provider >= 0.80.0
-
-**[View Full Documentation →](./tagging/README.md)**
+**[Full Documentation →](./tagging/README.md)**
 
 ---
 
