@@ -1,5 +1,7 @@
 # Snowflake Column Tag Association Module
 
+← [Back to all modules](../README.md)
+
 A Terraform module for managing Snowflake column tag associations with a simplified interface and built-in validation. Apply PHI tags to table columns with minimal code and automatic validation of tag values.
 
 ## Features
