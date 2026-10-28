@@ -93,7 +93,7 @@ A worker is a stored procedure, deployed with Terraform in the repo that owns th
 Example worker (from [examples/test-backfill](./examples/test-backfill/main.tf)):
 
 ```sql
-UPDATE MY_DB.MY_SCHEMA.MY_TABLE t
+UPDATE TARGET_DB.TARGET_SCHEMA.MY_TABLE t
    SET NEW_COLUMN = <expression from the source>,
        TASK_META  = ARRAY_SLICE(ARRAY_PREPEND(COALESCE(t.TASK_META, ARRAY_CONSTRUCT()), :P_META), 0, 10)
  WHERE t.EVENT_TS >= :P_START
@@ -126,33 +126,33 @@ Every lifecycle procedure checks the current state and changes it in one conditi
 
 ## Running a backfill, step by step
 
-`<FW>` below is the framework's `DATABASE.SCHEMA`.
+The examples use the module call from [Usage](#usage): the framework lives in `MY_DATABASE.MY_SCHEMA`. The table being backfilled and its worker live in `TARGET_DB.TARGET_SCHEMA`.
 
 1. **Confirm readiness.** The new columns are live and filled for new rows. The source still covers the whole range (e.g. `MIN(INGESTED_TIMESTAMP)` of the stage table ≤ oldest target row). List streams on the target (`SHOW STREAMS IN ACCOUNT`): every backfilled row is an UPDATE to them.
 2. **Write the worker** to the [contract](#the-worker-contract).
 3. **Deploy the worker** through Terraform in the repo that owns the target table. Development first.
 4. **Test one chunk by hand.**
    ```sql
-   CALL MY_DB.MY_SCHEMA.BACKFILL_MY_TABLE('2026-03-01', '2026-03-02', OBJECT_CONSTRUCT('OPERATION', 'MANUAL_TEST'));
-   CALL MY_DB.MY_SCHEMA.BACKFILL_MY_TABLE('2026-03-01', '2026-03-02', OBJECT_CONSTRUCT('OPERATION', 'MANUAL_TEST')); -- re-run: 0
+   CALL TARGET_DB.TARGET_SCHEMA.BACKFILL_MY_TABLE('2026-03-01', '2026-03-02', OBJECT_CONSTRUCT('OPERATION', 'MANUAL_TEST'));
+   CALL TARGET_DB.TARGET_SCHEMA.BACKFILL_MY_TABLE('2026-03-01', '2026-03-02', OBJECT_CONSTRUCT('OPERATION', 'MANUAL_TEST')); -- re-run: 0
    ```
    Check rows returned, rows still NULL in that window, duration and credits. Total cost ≈ one chunk × number of chunks.
 5. **Register.**
    ```sql
-   CALL <FW>.REGISTER_BACKFILL(
-       'MY_TABLE_123',                         -- name, unique forever
-       'MY_DB.MY_SCHEMA.MY_TABLE',             -- target table
-       'MY_DB.MY_SCHEMA.BACKFILL_MY_TABLE',    -- worker
-       '2025-01-01',                           -- start (inclusive)
-       NULL,                                   -- end (exclusive); NULL = now
-       'Issue #123: backfill NEW_COLUMN',      -- reason (no PHI)
-       1, 'DAY',                               -- optional: chunk size and unit (HOUR | DAY); default 1 DAY
-       NULL,                                   -- optional: warehouse; NULL = serverless
-       60);                                    -- optional: time limit per chunk, minutes; default 60
+   CALL MY_DATABASE.MY_SCHEMA.REGISTER_BACKFILL(
+       'MY_TABLE_123',                                 -- name, unique forever
+       'TARGET_DB.TARGET_SCHEMA.MY_TABLE',             -- target table
+       'TARGET_DB.TARGET_SCHEMA.BACKFILL_MY_TABLE',    -- worker
+       '2025-01-01',                                   -- start (inclusive)
+       NULL,                                           -- end (exclusive); NULL = now
+       'Issue #123: backfill NEW_COLUMN',              -- reason (no PHI)
+       1, 'DAY',                                       -- optional: chunk size and unit (HOUR | DAY); default 1 DAY
+       NULL,                                           -- optional: warehouse; NULL = serverless
+       60);                                            -- optional: time limit per chunk, minutes; default 60
    ```
 6. **Pause stream consumers** that should not see the updates, if any.
-7. **Start.** `CALL <FW>.START_BACKFILL('MY_TABLE_123');` — creates `BACKFILL_TASK_MY_TABLE_123` and runs one chunk per minute.
-8. **Watch.** `SELECT * FROM <FW>.BACKFILL_STATUS;` and `SELECT * FROM <FW>.BACKFILL_RUN_LOG WHERE BACKFILL_NAME = 'MY_TABLE_123' ORDER BY STARTED_AT DESC;`
+7. **Start.** `CALL MY_DATABASE.MY_SCHEMA.START_BACKFILL('MY_TABLE_123');` — creates `BACKFILL_TASK_MY_TABLE_123` and runs one chunk per minute.
+8. **Watch.** `SELECT * FROM MY_DATABASE.MY_SCHEMA.BACKFILL_STATUS;` and `SELECT * FROM MY_DATABASE.MY_SCHEMA.BACKFILL_RUN_LOG WHERE BACKFILL_NAME = 'MY_TABLE_123' ORDER BY STARTED_AT DESC;`
 9. **Pause / resume / recover** — see [below](#failures-alerts-and-recovery).
 10. **Verify.** No rows in range still NULL in a column the worker always sets.
 11. **Clean up.** Resume paused consumers. Remove the worker from Terraform. The task is already dropped; the control and log rows stay as the permanent record.
