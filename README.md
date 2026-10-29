@@ -6,7 +6,7 @@ Reusable Terraform modules for Snowflake administration and governance. Each mod
 
 | Module | What it does | Current tag | Docs |
 |---|---|---|---|
-| [backfill](./backfill/README.md) | Backfill columns in a table one chunk at a time: control table, run log, status view, lifecycle procedures, one task per backfill, failure alerts | `backfill-v1.0.0` | [README](./backfill/README.md) |
+| [backfill](./backfill/README.md) | Backfill columns in a table one chunk at a time: control table, run log, status view, lifecycle procedures, one task per backfill, failure alerts | `backfill-v1.1.0` | [README](./backfill/README.md) |
 | [tagging](./tagging/README.md) | Apply Snowflake tags to table columns (PHI, PII, PCI classifications) | `main` (untagged) | [README](./tagging/README.md) |
 
 ## Using a module
