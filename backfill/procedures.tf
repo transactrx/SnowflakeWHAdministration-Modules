@@ -533,6 +533,7 @@ resource "snowflake_procedure_sql" "execute_backfill" {
       v_sqlstate    VARCHAR;
       v_done        BOOLEAN DEFAULT FALSE;
       v_sql         VARCHAR;
+      v_worker_hash VARCHAR;
       not_found       EXCEPTION (-20050, 'EXECUTE_BACKFILL: no backfill with this name.');
       chunk_timed_out EXCEPTION (-20051, 'EXECUTE_BACKFILL: previous chunk was still STARTED (its run exceeded the time limit). Backfill is FAILED; see BACKFILL_STATUS and BACKFILL_RUN_LOG.');
       chunk_failed    EXCEPTION (-20052, 'EXECUTE_BACKFILL: worker failed. Backfill is FAILED and its task suspended; see BACKFILL_STATUS and BACKFILL_RUN_LOG.');
@@ -618,11 +619,20 @@ resource "snowflake_procedure_sql" "execute_backfill" {
                     INTO :v_meta_json, :v_acted_by;
           END;
 
+          -- Fingerprint of the worker definition this chunk runs. NULL if it cannot be read
+          -- (e.g. the worker was dropped); the CALL below then fails and records why.
+          BEGIN
+              SELECT LEFT(SHA2(GET_DDL('PROCEDURE', :v_worker || '(TIMESTAMP_NTZ, TIMESTAMP_NTZ, OBJECT)'), 256), 12)
+                INTO :v_worker_hash;
+          EXCEPTION
+              WHEN OTHER THEN v_worker_hash := NULL;
+          END;
+
           UPDATE ${local.control_table} SET ATTEMPTS = :v_attempt, UPDATED_AT = CURRENT_TIMESTAMP() WHERE BACKFILL_ID = :v_id;
           INSERT INTO ${local.run_log_table}
-              (RUN_ID, BACKFILL_ID, BACKFILL_NAME, CHUNK_START, CHUNK_END, ATTEMPT, STATE, ACTED_BY, STARTED_AT)
+              (RUN_ID, BACKFILL_ID, BACKFILL_NAME, CHUNK_START, CHUNK_END, ATTEMPT, STATE, ACTED_BY, STARTED_AT, WORKER_HASH)
           VALUES
-              (:v_run_id, :v_id, :v_name, :v_cursor, :v_chunk_end, :v_attempt, 'STARTED', :v_acted_by, :v_started);
+              (:v_run_id, :v_id, :v_name, :v_cursor, :v_chunk_end, :v_attempt, 'STARTED', :v_acted_by, :v_started, :v_worker_hash);
 
           BEGIN
               v_sql := 'CALL ' || v_worker || '(?, ?, PARSE_JSON(?)::OBJECT)';

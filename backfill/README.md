@@ -39,7 +39,7 @@ Rules:
 
 ```hcl
 module "backfill" {
-  source = "git::https://github.com/transactrx/SnowflakeWHAdministration-Modules.git//backfill?ref=backfill-v1.0.0"
+  source = "git::https://github.com/transactrx/SnowflakeWHAdministration-Modules.git//backfill?ref=backfill-v1.1.0"
 
   database                 = "MY_DATABASE"
   schema                   = "MY_SCHEMA"
@@ -71,7 +71,7 @@ Requirements:
 | `control_table`, `run_log_table`, `status_view` | Fully qualified names |
 | `procedures` | Map of fully qualified procedure names: `register`, `start`, `pause`, `resume`, `cancel`, `execute`, `cleanup` |
 
-`BACKFILL_CONTROL` and `BACKFILL_RUN_LOG` have `prevent_destroy`: they are the permanent record.
+`BACKFILL_CONTROL` and `BACKFILL_RUN_LOG` are the permanent record of every backfill. They carry no `prevent_destroy` (since `backfill-v1.1.0`), so removing the module call, or the schema it lives in, drops them with their history. Deploy the module where it stays put; a test deployment can be removed cleanly by deleting the module call.
 
 ## The worker contract
 
@@ -177,6 +177,19 @@ Recovery is manual:
 | `RESUME_BACKFILL('<name>')` | `PAUSED` / `FAILED` / stalled → `ACTIVE`; retries the chunk at the cursor. |
 | `RESUME_BACKFILL('<name>', TRUE, '<reason>')` | `FAILED` only: records the chunk `SKIPPED` with the reason and who skipped it, then moves on. For a chunk that can never succeed. |
 | `CANCEL_BACKFILL('<name>')` | Stops for good; drops the task. |
+
+### Worker changes
+
+Each chunk calls the worker by name, so it runs whatever definition is deployed at that moment. Redeploying the worker mid-backfill (for example, fixing it after a failure) changes every chunk after that point.
+
+Every run log row records `WORKER_HASH`: the first 12 hex characters of a SHA-256 over the worker's `GET_DDL` at the start of that chunk. `BACKFILL_STATUS.WORKER_CHANGED` is `TRUE` when the latest chunk's hash differs from the first chunk's, and `LAST_WORKER_HASH` shows the current one. Nothing is blocked; to see where a change happened:
+
+```sql
+SELECT WORKER_HASH, MIN(CHUNK_START), MAX(CHUNK_START), COUNT(*)
+FROM MY_DATABASE.MY_SCHEMA.BACKFILL_RUN_LOG
+WHERE BACKFILL_NAME = 'MY_TABLE_123'
+GROUP BY WORKER_HASH ORDER BY 2;
+```
 
 ## Procedure reference
 

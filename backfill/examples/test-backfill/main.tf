@@ -40,7 +40,7 @@ variable "notification_integration" {
 module "backfill" {
   source = "../.."
   # From another repo:
-  # source = "git::https://github.com/transactrx/SnowflakeWHAdministration-Modules.git//backfill?ref=backfill-v1.0.0"
+  # source = "git::https://github.com/transactrx/SnowflakeWHAdministration-Modules.git//backfill?ref=backfill-v1.1.0"
 
   database                 = var.database
   schema                   = var.schema

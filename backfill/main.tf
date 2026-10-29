@@ -158,10 +158,6 @@ resource "snowflake_table" "control" {
     type     = "TIMESTAMP_LTZ(9)"
     nullable = false
   }
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -251,16 +247,18 @@ resource "snowflake_table" "run_log" {
     name = "DURATION_SECONDS"
     type = "NUMBER(38,3)"
   }
-
-  lifecycle {
-    prevent_destroy = true
+  column {
+    name    = "WORKER_HASH"
+    type    = "VARCHAR(12)"
+    comment = "First 12 hex chars of SHA-256 over the worker's GET_DDL at the start of this chunk. A change between chunks means the worker was redeployed mid-backfill."
   }
 }
 
 //----------------------------------------------------------------------------------------------------
-// Status view: control row + progress + latest chunk + stall flag.
+// Status view: control row + progress + latest chunk + stall flag + worker-change flag.
 // STALLED = ACTIVE with a chunk still STARTED past its time limit (the run was killed and the task
 // auto-suspended). Recover with RESUME_BACKFILL, which marks that chunk TIMED_OUT and retries it.
+// WORKER_CHANGED = the latest chunk ran a different worker definition than the first chunk.
 //----------------------------------------------------------------------------------------------------
 resource "snowflake_view" "status" {
   database = local.db
@@ -273,6 +271,14 @@ resource "snowflake_view" "status" {
         SELECT *
         FROM ${local.run_log_table}
         QUALIFY ROW_NUMBER() OVER (PARTITION BY BACKFILL_ID ORDER BY STARTED_AT DESC) = 1
+    ),
+    worker AS (
+        SELECT BACKFILL_ID,
+               MIN_BY(WORKER_HASH, STARTED_AT) AS FIRST_WORKER_HASH,
+               MAX_BY(WORKER_HASH, STARTED_AT) AS LAST_WORKER_HASH
+        FROM ${local.run_log_table}
+        WHERE WORKER_HASH IS NOT NULL
+        GROUP BY BACKFILL_ID
     )
     SELECT
         c.BACKFILL_NAME,
@@ -299,6 +305,8 @@ resource "snowflake_view" "status" {
         (c.STATE = 'ACTIVE'
             AND l.STATE = 'STARTED'
             AND l.STARTED_AT < DATEADD('minute', -(c.TIME_LIMIT_MINUTES + 1), CURRENT_TIMESTAMP())) AS STALLED,
+        COALESCE(w.FIRST_WORKER_HASH <> w.LAST_WORKER_HASH, FALSE) AS WORKER_CHANGED,
+        w.LAST_WORKER_HASH,
         COALESCE(c.WAREHOUSE, 'SERVERLESS') AS COMPUTE,
         c.TIME_LIMIT_MINUTES,
         c.TASK_NAME,
@@ -310,6 +318,7 @@ resource "snowflake_view" "status" {
         c.BACKFILL_ID
     FROM ${local.control_table} c
     LEFT JOIN latest l ON l.BACKFILL_ID = c.BACKFILL_ID
+    LEFT JOIN worker w ON w.BACKFILL_ID = c.BACKFILL_ID
   SQL
 
   depends_on = [snowflake_table.control, snowflake_table.run_log]
