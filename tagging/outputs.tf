@@ -1,6 +1,6 @@
 output "tagged_columns" {
-  description = "Map of columns that were tagged with their PHI values"
-  value       = var.column_tag_values
+  description = "Map of columns that are tagged with their PHI values (empty when tagging_enabled = false)"
+  value       = var.tagging_enabled ? var.column_tag_values : {}
 }
 
 output "table_name" {
@@ -14,11 +14,16 @@ output "tag_id" {
 }
 
 output "associations_created" {
-  description = "Number of column tag associations created"
-  value       = length(var.column_tag_values)
+  description = "Number of column tag associations applied (0 when tagging_enabled = false)"
+  value       = length(snowflake_tag_association.column_tags)
 }
 
 output "association_keys" {
-  description = "List of association keys created (for debugging)"
-  value       = keys(local.tag_associations)
+  description = "List of association keys applied (for debugging; empty when tagging_enabled = false)"
+  value       = keys(snowflake_tag_association.column_tags)
+}
+
+output "tagging_enabled" {
+  description = "Whether this module is currently applying its tags"
+  value       = var.tagging_enabled
 }

@@ -61,6 +61,29 @@ module "tag_trx_claims_phi" {
 }
 ```
 
+### Turning tags off and on
+
+Set `tagging_enabled = false` to remove a table's tags without commenting out the module. The next
+apply destroys only the tag associations; the table and its data are untouched. Set it back to `true`
+(or delete the line) and the next apply restores them.
+
+```hcl
+module "tag_trx_claims_phi" {
+  source = "git::https://github.com/transactrx/SnowflakeWHAdministration-Modules.git//tagging?ref=tagging-v1.1.0"
+
+  tagging_enabled            = local.phi_tagging_enabled # one switch per project
+  tag_id                     = local.tag_id_phi
+  table_fully_qualified_name = snowflake_table.TRX_CLAIMS.fully_qualified_name
+  column_tag_values          = { "PATIENT_ID" = "TRUE" }
+}
+```
+
+- **Lift and restore a whole project:** point every module at one local (e.g. `local.phi_tagging_enabled`)
+  and flip that one value.
+- **Permanent exception:** set `tagging_enabled = false` directly on that table's module so the project
+  switch never turns it on.
+- **Large projects:** turning a whole project off or on is one apply with one change per tagged column.
+
 ## Valid PHI Tag Values
 
 The module validates tag values against this list of PHI masking patterns:
@@ -87,6 +110,7 @@ The module validates tag values against this list of PHI masking patterns:
 | `tag_id` | Tag ID to apply to columns (e.g., local.tag_id_phi) | `string` | yes |
 | `table_fully_qualified_name` | Fully qualified table name (DATABASE.SCHEMA.TABLE) | `string` | yes |
 | `column_tag_values` | Map of column names to tag values | `map(string)` | yes |
+| `tagging_enabled` | Apply the tags (`true`) or remove them (`false`). Default `true` | `bool` | no |
 
 ### Validation Rules
 
@@ -105,11 +129,12 @@ The module validates tag values against this list of PHI masking patterns:
 
 | Name | Description |
 |------|-------------|
-| `tagged_columns` | Map of columns that were tagged with their PHI values |
+| `tagged_columns` | Map of columns that are tagged with their PHI values (empty when `tagging_enabled = false`) |
 | `table_name` | Fully qualified name of the table that was tagged |
 | `tag_id` | Tag ID that was applied |
-| `associations_created` | Number of column tag associations created |
-| `association_keys` | List of association keys created (for debugging) |
+| `associations_created` | Number of column tag associations applied (0 when `tagging_enabled = false`) |
+| `association_keys` | List of association keys applied (for debugging) |
+| `tagging_enabled` | Whether the module is currently applying its tags |
 
 ## Error Messages
 
