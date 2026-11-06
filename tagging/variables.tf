@@ -62,3 +62,10 @@ variable "column_tag_values" {
     error_message = "Column names must be uppercase with underscores (e.g., FIRST_NAME, DATE_OF_BIRTH)."
   }
 }
+
+variable "tagging_enabled" {
+  description = "Apply the tags (true, default) or remove them (false). Flip to false to lift a table's tags without commenting out the module; flip back to true to restore them."
+  type        = bool
+  default     = true
+  nullable    = false
+}

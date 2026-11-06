@@ -26,8 +26,9 @@ locals {
 //----------------------------------------------------------------------------------------------------
 // Apply Tags to Columns
 //----------------------------------------------------------------------------------------------------
+# tagging_enabled = false empties the set, so the next apply removes every tag this module applied.
 resource "snowflake_tag_association" "column_tags" {
-  for_each = local.tag_associations
+  for_each = var.tagging_enabled ? local.tag_associations : {}
 
   object_type        = "COLUMN"
   object_identifiers = ["${var.table_fully_qualified_name}.${each.value.column_name}"]
